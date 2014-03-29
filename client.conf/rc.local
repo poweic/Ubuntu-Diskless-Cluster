@@ -10,9 +10,19 @@
 # bits.
 #
 # By default this script does nothing.
+
+# Mount all the NFS 
 mount 10.0.0.1:/usr /usr
 mount 10.0.0.1:/var/lib /var/lib
 mount 10.0.0.1:/var/cache /var/cache
+
+# Start ssh daemon
 /usr/sbin/sshd
+
+# Grep NAT ip from ifconfig and hostname specified in /etc/hosts
+# Then change to new hostname
+IP=`ifconfig | sed -n '/lo/q;p' | grep -oE "inet addr\:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" | sed s/^.*\://`
+HOST_NAME=`grep $IP /etc/hosts | sed s/$IP//g | sed -e 's/^[ \t]*//'`
+hostname $HOST_NAME
 
 exit 0
