@@ -1,0 +1,208 @@
+#!/bin/bash
+#
+# ========================================================
+# 程式說明：
+# 歡迎使用 iptables.rule 這個 script 來建立您的防火牆！
+# 這支 script 還需要您的額外設定方可適合您的主機環境！
+# 基本規則定義為『拒絕所有，開放特定』的模式！
+# 
+# 強烈建議：
+# 不了解 Linux 防火牆機制 iptables 的朋友使用這支 script
+# 可能會不太瞭解每個指令列的意義，果真如此的話，
+# 歡迎參考底下幾個網頁：
+# http://www.study-area.org/linux/servers/linux_nat.htm
+# http://linux.vbird.org/linux_server/0210network-secure.php
+# http://linux.vbird.org/linux_server/0250simple_firewall.php
+#
+# 使用說明：
+# 確定這個程式僅有 Linux 的斷行字元：
+#	dos2unix iptables.rule
+# 請先將這個 scripts 的權限更改為可執行：
+#       chmod 755 iptables.rule
+# 在將這個程式放置在 /usr/local/vbird/iptables 目錄下：
+#       mkdir -p /usr/local/vbird/iptables
+#       mv /完整的路徑/iptables.rule /usr/local/vbird/iptables
+# 執行測試：
+#       /usr/local/vbird/iptables/iptables.rule
+#       iptables -L -n   (這個動作在檢查防火牆規則)
+# 將底下這一行加入 /etc/rc.d/rc.local 當中
+#       /usr/local/vbird/iptables/iptables.rule
+# 取消防火牆：
+#       iptables -F
+#       iptables -X
+#       iptables -t nat -F
+#       iptables -t nat -X
+#
+# ========================================================
+# 版權宣告：
+# 這支程式為 GPL 授權，任何人皆可使用，
+# 然，若使用本 scripts 發生問題時，本人不負任何責任
+# VBird <vbird@mail.vbird.idv.tw>
+# ========================================================
+#
+# 歷史紀錄：
+# 2002/08/20    VBird   首次釋出
+# 2003/04/26    VBird   加入砍站軟體的相關執行檔案！
+# 2003/08/25    VBird   修改 INPUT 的 Policy 成為 DROP
+# 2006/09/13	VBird	重新修訂，加入一些核心參數 /proc/sys/net/ipv4/*
+# 2006/09/15	VBird   加入關於 NAT 主機後端伺服器的轉址功能。
+# 2006/09/30	VBird	加入每個設定項目的英文說明！！
+# 2006/11/08	VBird	參考朋友們發現的 PPPoE 導致 MTU 的問題，增加一條規則！在 NAT 的部分。
+# 2011/02/07	VBird	讓服務的來源端埠口變成 1024:65534 的設定
+#
+###########################################################################################
+
+# 請先輸入您的相關參數，不要輸入錯誤了！
+# English: Please input your networks parameters ( including your LAN NIC )
+  EXTIF="eth0"				# 這個是可以連上 Public IP 的網路介面，也可能是 ppp0
+					# This is your NIC, connect to internet. Such as ppp0...
+  INIF="eth1"				# 內部 LAN 的連接介面；若無 LAN ，填寫成 INIF=""
+					# This is your LAN NIC.  If you don't have a LAN, input INIF="" please.
+  INNET="10.0.0.0/24"			# 若有兩個以上的網域，可以用 INNET="192.168.1.0/24 192.168.100.0/24"
+					# 若無內部網域介面，請填寫成 INNET=""
+					# This is your LAN's Network.  If you have to private network, 
+					# input as INNET="192.168.1.0/24 192.168.100.0/24".
+  export EXTIF INIF INNET
+
+# 個人化設定啊！請自行填寫您自己想要預先啟動的一些基礎資料。
+# These settings is about yourself's paramters.
+  allowname=''	# 允許登入本機的 hostname ，必須是 Internet 找的到的 hostname。
+  allowip="140.112.21.18"
+  if [ "$allowname" != "" ]; then
+    for siteiptmp in `echo $allowname`
+    do
+          siteip=`/usr/bin/host $siteiptmp 168.95.1.1 | grep address|tail -n 1 | awk '{print $4}'`
+          testip=`echo $siteip | grep [^0-9.]`
+          if [ "$testip" == "" ]; then
+               allowip="$allowip  $siteip"
+          fi
+    done
+  fi
+  export allowip
+
+# 第一部份，針對本機的防火牆設定！#########################################################
+# First, your server's firewall settings.
+# 1. 先設定好核心的網路功能：
+# 1. the kernel's firewall settings.
+  # 開啟 TCP Flooding 的 DoS 攻擊抵擋機制，但這個設定不適合 loading 已經很高的主機！！！
+  # TCP Flooding's setting.  this setting is no good for high loading servers
+  echo "1" > /proc/sys/net/ipv4/tcp_syncookies
+  # 取消 ping 廣播的回應；
+  # unset reply of ping.
+  echo "1" > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
+  # 開啟逆向路徑過濾，以符合 IP 封包與網路介面的設定；
+  # 
+  for i in /proc/sys/net/ipv4/conf/*/rp_filter; do
+	echo "1" > $i
+  done
+  # 開啟記錄有問題的封包
+  # record some problems packets.
+  for i in /proc/sys/net/ipv4/conf/*/log_martians; do
+	echo "1" > $i
+  done
+  # 取消來源路由，這個設定值是可以取消的；
+  for i in /proc/sys/net/ipv4/conf/*/accept_source_route; do
+	echo "0" > $i
+  done
+  # 取消重新宣告路徑的功能。
+  for i in /proc/sys/net/ipv4/conf/*/accept_redirects; do
+	echo "0" > $i
+  done
+  # 取消傳送重新宣告路徑的功能。
+  for i in /proc/sys/net/ipv4/conf/*/send_redirects; do
+	echo "0" > $i
+  done
+
+# 2. 清除規則、設定預設政策及開放 lo 與相關的設定值
+# 2. clear rule, set the policy rule and allow lo connect.
+  PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/sbin:/usr/local/bin; export PATH
+  iptables -F
+  iptables -X
+  iptables -Z
+  iptables -P INPUT   DROP
+  iptables -P OUTPUT  ACCEPT
+  iptables -P FORWARD ACCEPT
+  iptables -A INPUT -i lo -j ACCEPT
+  iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# 3. 啟動額外的防火牆 script 模組
+# 3. other shell scripts, written by VBird.
+  # 預設抵擋的主機
+  if [ -f /usr/local/vbird/iptables/iptables.deny ]; then
+	sh /usr/local/vbird/iptables/iptables.deny
+  fi
+  # 預設開放的主機
+  if [ -f /usr/local/vbird/iptables/iptables.allow ]; then
+	sh /usr/local/vbird/iptables/iptables.allow
+  fi
+  # 透過 WWW 砍站軟體分析的抵擋機制
+  if [ -f /usr/local/vbird/httpd-err/iptables.http ]; then
+        sh /usr/local/vbird/httpd-err/iptables.http
+  fi
+
+# 4. 允許某些類型的 ICMP 封包進入
+# 4. allow some types of ICMP
+  AICMP="0 3 3/4 4 11 12 14 16 18"
+  for tyicmp in $AICMP 
+  do 
+	iptables -A INPUT -i $EXTIF -p icmp --icmp-type $tyicmp -j ACCEPT
+  done
+
+# 5. 允許某些服務的進入
+iptables -A INPUT -p TCP -i $EXTIF --dport  21  --sport 1024:65534 -j ACCEPT	# FTP
+iptables -A INPUT -p TCP -i $EXTIF --dport  22  --sport 1024:65534 -j ACCEPT	# SSH
+# iptables -A INPUT -p TCP -i $EXTIF --dport  25  --sport 1024:65534 -j ACCEPT	# SMTP
+# iptables -A INPUT -p UDP -i $EXTIF --dport  53  --sport 1024:65534 -j ACCEPT	# DNS
+# iptables -A INPUT -p TCP -i $EXTIF --dport  53  --sport 1024:65534 -j ACCEPT	# DNS
+iptables -A INPUT -p TCP -i $EXTIF --dport  80  --sport 1024:65534 -j ACCEPT	# WWW 
+# iptables -A INPUT -p TCP -i $EXTIF --dport 110  --sport 1024:65534 -j ACCEPT	# POP3
+# iptables -A INPUT -p TCP -i $EXTIF --dport 443  --sport 1024:65534 -j ACCEPT	# HTTPS 
+
+
+# 第二部份，針對後端主機的防火牆設定！#########################################################
+# Second, the NAT settings.
+# 1. 先載入一些有用的模組
+# 1. loading some good modules of iptables.
+  modules="ip_tables iptable_nat ip_nat_ftp ip_nat_irc ip_conntrack ip_conntrack_ftp ip_conntrack_irc"
+  for mod in $modules
+  do
+	testmod=`lsmod | grep "^${mod} " | awk '{print $1}'`
+	if [ "$testmod" == "" ]; then
+		modprobe $mod
+	fi
+  done
+
+# 2. 清除 NAT table 的規則吧！
+# 2. clean NAT table's rule
+  iptables -F -t nat
+  iptables -X -t nat
+  iptables -Z -t nat
+  iptables -t nat -P PREROUTING  ACCEPT
+  iptables -t nat -P POSTROUTING ACCEPT
+  iptables -t nat -P OUTPUT      ACCEPT
+
+# 3. 開放成為路由器，且為 IP 分享器！
+# 3. NAT server's settings
+  if [ "$INIF" != "" ]; then
+  	iptables -A INPUT -i $INIF -j ACCEPT
+	echo "1" > /proc/sys/net/ipv4/ip_forward
+	if [ "$INNET" != "" ]; then
+		for innet in $INNET
+		do
+			iptables -t nat -A POSTROUTING -s $innet -o $EXTIF -j MASQUERADE
+		done
+	fi
+  fi
+  # 如果你的 MSN 一直無法連線，或者是某些網站 OK 某些網站不 OK，可能是 MTU 的問題，
+  # 那你可以將底下這一行給他取消註解來啟動 MTU 限制範圍
+  # iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1400:1536 -j TCPMSS --clamp-mss-to-pmtu
+
+# 4. NAT 主機後端的 LAN 內對外之伺服器設定
+# iptables -t nat -A PREROUTING -p tcp -i $EXTIF --dport 80 -j DNAT --to-destination 192.168.1.210:80 # WWW
+
+# 5.  特殊的功能，包括 Windows 遠端桌面所產生的規則，假設桌面主機為 1.2.3.4，你區網內的主機為 192.168.1.100
+#  iptables -t nat -A PREROUTING -p tcp -s 1.2.3.4 --dport 6000 -j DNAT --to-destination 192.168.1.100
+#  iptables -t nat -A PREROUTING -p tcp -s 1.2.3.4 --sport 3389 -j DNAT --to-destination 192.168.1.100
+
+# 最終將這些功能儲存下來吧！
+iptables-save

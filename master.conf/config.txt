@@ -1,0 +1,9 @@
+Filename	location			permission	owner	group
+dhcpd.conf	/etc/dhcp/			644		root	root
+exports		/etc/				644		root	root
+interfaces	/etc/network/			644		root	root
+tftp		/etc/xinetd.d/			644		root	root
+tftpd-hpa	/etc/default/			644		root	root
+0A0000		/tftpboot/pxelinux.cfg/		755 		root	root
+iptables.rule	/usr/local/vbird/iptables/	700		root	root
+iptables.allow	/usr/local/vbird/iptables/ 	700		root	root

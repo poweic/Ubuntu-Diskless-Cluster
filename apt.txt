@@ -1,0 +1,2 @@
+/var/lib/dpkg/updates/
+/var/lib/dpkg/available

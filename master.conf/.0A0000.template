@@ -1,0 +1,7 @@
+# default is label 'linux'
+# boots a linux kernel and mounts rootfs.gz as a root file system on a 512MiB ramdisk
+default linux
+
+label   linux
+    kernel linux/vmlinuz-KERNEL_RELEASE
+    append initrd=linux/rootfs.gz root=/dev/ram ramdisk_size=524288 rw ip=dhcp

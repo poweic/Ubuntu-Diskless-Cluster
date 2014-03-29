@@ -1,0 +1,8 @@
+Filename			location		permission	owner	group
+rc.local			/etc/			755		root	root
+70-persistent-net.rules		/etc/udev/rules.d/	644		root	root
+fstab				/etc/			644		root	root
+interfaces			/etc/network/		644		root	root
+hosts				/etc/			644		root	root
+nsswitch.conf 			/etc/			644		root	root
+yp.conf				/etc/			644		root	root
