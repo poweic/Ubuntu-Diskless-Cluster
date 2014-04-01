@@ -40,6 +40,18 @@ function generate_kernel_image() {
   cp -ap /var/lib/nfs var/lib
   cp -ap /usr/bin/id usr/bin
 
+  # cd out of the mount point
+  cd ..
+}
+
+function setup_client_config() {
+
+  # Setup client configuration
+  source utils/config.sh
+  apply_config client.conf/ $mount_point
+
+  cd $mount_point
+
   # Copy DNS server ip configuration to rootfs
   mkdir -p run/resolvconf/
   cp /run/resolvconf/resolv.conf run/resolvconf/resolv.conf
@@ -47,36 +59,24 @@ function generate_kernel_image() {
   # Create directory needed by ssh daemon
   mkdir var/run/sshd
 
-  # special files needed by "apt-get"
+  # Create Special files needed by "apt-get"
   sudo mkdir -p var/cache/apt/archives/partial
   sudo touch var/cache/apt/archives/lock
   sudo chmod 640 var/cache/apt/archives/lock
 
-  # cd out of the mount point
-  cd ..
-}
-
-function setup_client_config() {
-  # Setup client configuration
-
-  # change permissions, owner, group
-  conf=client.conf/
-
-  source utils/config.sh
-  apply_config $conf $mount_point
+  # Create directory needed by rwhod daemon
+  mkdir -p var/spool/rwho
 
   # Disable update-motd when logging in
-  mv $mount_point/etc/update-motd.d/ $mount_point/etc/.update-motd.d.backup/
+  mv etc/update-motd.d/ etc/.update-motd.d.backup/
 
-  echo '+::::::' >> $mount_point/etc/passwd
-  echo '+:::' >> $mount_point/etc/group
-  echo '+::::::::' >> $mount_point/etc/shadow
-  echo '+:::' >> $mount_point/etc/gshadow
-}
+  # NIS Client Settings
+  echo '+::::::' >> etc/passwd
+  echo '+:::' >> etc/group
+  echo '+::::::::' >> etc/shadow
+  echo '+:::' >> etc/gshadow
 
-function compress_kernel_image() {
-  # Compress the rootfs into .gz file
-  gzip -c rootfs | dd of=rootfs.gz
+  cd ../
 }
 
 # set mount point for the rootfs
@@ -87,5 +87,3 @@ setup_client_config
 
 # umount the rootfs-loop
 umount $mount_point
-
-compress_kernel_image
