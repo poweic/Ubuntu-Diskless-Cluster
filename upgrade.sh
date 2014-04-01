@@ -22,6 +22,7 @@ if [ "$MASTER_KERNEL" != "$SLAVE_KERNEL" ]; then
 		printf "Upgrading slave kernel to $MASTER_KERNEL ...\t"
 		rm -r $mount_point/lib/modules/$SLAVE_KERNEL
 		cp -r /lib/modules/$MASTER_KERNEL $mount_point/lib/modules/
+		./tar.sh
 
 		SLAVE_KERNEL=$MASTER_KERNEL
 	fi
