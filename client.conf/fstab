@@ -11,3 +11,4 @@ none            /tmp            tmpfs   defaults        0       0
 none            /var/run        tmpfs   defaults        0       0
 none            /var/lock       tmpfs   defaults        0       0
 none            /var/tmp        tmpfs   defaults        0       0
+10.0.6.4:/ds3400a/home  /home   nfs     defaults,noatime    0  0

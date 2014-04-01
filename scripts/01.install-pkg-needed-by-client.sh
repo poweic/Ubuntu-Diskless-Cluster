@@ -1,1 +1,1 @@
-apt-get install rpcbind nfs-common ntp nis
+apt-get install rpcbind nfs-common ntp nis rwhod

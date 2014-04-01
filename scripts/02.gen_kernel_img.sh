@@ -30,19 +30,27 @@ function generate_kernel_image() {
   cp -ap /dev .
   cp -ap /bin .
   cp -ap /sbin .
-  cp -ap /lib .
-  # cp -ap /var .
+  #cp -ap /lib .
+  module=lib/modules/
+  rsync -a /lib . --exclude /$module
+  mkdir -p $module
+  cp -ap /$module/$(uname -r) $module/
+  #cp -ap /$module/3.8.0-29-generic $module/
+
   cp -ap /var/lib/nfs var/lib
   cp -ap /usr/bin/id usr/bin
-  #cp -ap /root/.bashrc root/
-  #cp -ap /root/.bash_profile root/
-  #cp -ap /root/.bash_logout root/
+
+  # Copy DNS server ip configuration to rootfs
+  mkdir -p run/resolvconf/
+  cp /run/resolvconf/resolv.conf run/resolvconf/resolv.conf
+
+  # Create directory needed by ssh daemon
+  mkdir var/run/sshd
 
   # special files needed by "apt-get"
-  mkdir var/run/sshd
-  # sudo mkdir -p var/cache/apt/archives/partial
-  # sudo touch var/cache/apt/archives/lock
-  # sudo chmod 640 var/cache/apt/archives/lock
+  sudo mkdir -p var/cache/apt/archives/partial
+  sudo touch var/cache/apt/archives/lock
+  sudo chmod 640 var/cache/apt/archives/lock
 
   # cd out of the mount point
   cd ..
@@ -57,11 +65,13 @@ function setup_client_config() {
   source utils/config.sh
   apply_config $conf $mount_point
 
-  # for SSH-server on client nodes
-  mkdir $mount_point/var/run/sshd/
-
   # Disable update-motd when logging in
   mv $mount_point/etc/update-motd.d/ $mount_point/etc/.update-motd.d.backup/
+
+  echo '+::::::' >> $mount_point/etc/passwd
+  echo '+:::' >> $mount_point/etc/group
+  echo '+::::::::' >> $mount_point/etc/shadow
+  echo '+:::' >> $mount_point/etc/gshadow
 }
 
 function compress_kernel_image() {
